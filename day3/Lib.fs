@@ -19,7 +19,6 @@ type BatteryBank = {
             }
 
         member this.joltageRating (batteryCount : int) = 
-            printfn "Going to turn on %d batteries from among %A" batteryCount this.batteries;
             let mutable batteriesTurnedOnSoFar = 0 in
             let mutable digitsFoundReversed = []; // reversed because of how list cons works
             // We keep a sliding window that "shrinks" from the left whenever we take a digit, so that we only keep the digits *after* that one available for selection
