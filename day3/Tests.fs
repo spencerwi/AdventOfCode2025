@@ -29,19 +29,42 @@ let batteryBanks = parseInput sample_input |> Array.ofSeq
 [<TestFixture>]
 type ``BatteryBank tests`` ()=
 
-    static member joltageTestCases : (BatteryBank * int)[] = [|
-        (batteryBanks[0], 98)
-        (batteryBanks[1], 89)
-        (batteryBanks[2], 78)
-        (batteryBanks[3], 92)
+    static member joltage2TestCases : (BatteryBank * int64)[] = [|
+        (batteryBanks[0], 98L)
+        (batteryBanks[1], 89L)
+        (batteryBanks[2], 78L)
+        (batteryBanks[3], 92L)
+    |]
+    static member joltage3TestCases : (BatteryBank * int64)[] = [|
+        (batteryBanks[0], 987L)
+        (batteryBanks[1], 819L)
+        (batteryBanks[2], 478L)
+        (batteryBanks[3], 921L)
+    |]
+    static member joltage12TestCases : (BatteryBank * int64)[] = [|
+        (batteryBanks[0], 987654321111L)
+        (batteryBanks[1], 811111111119L)
+        (batteryBanks[2], 434234234278L)
+        (batteryBanks[3], 888911112111L)
     |]
 
     [<Test>]
-    [<TestCaseSource("joltageTestCases")>]
-    member _.``It should calculate joltage correctly`` (testData : BatteryBank * int) =
+    [<TestCaseSource("joltage2TestCases")>]
+    member _.``It should calculate joltage correctly for 2 batteries`` (testData : BatteryBank * int64) =
         let batteryBank, expectedResult = testData in
-        batteryBank.joltageRating |> should equal expectedResult
+        batteryBank.joltageRating 2 |> should equal expectedResult
         
+    [<Test>]
+    [<TestCaseSource("joltage3TestCases")>]
+    member _.``It should calculate joltage correctly for 3 batteries`` (testData : BatteryBank * int64) =
+        let batteryBank, expectedResult = testData in
+        batteryBank.joltageRating 3 |> should equal expectedResult
+
+    [<Test>]
+    [<TestCaseSource("joltage12TestCases")>]
+    member _.``It should calculate joltage correctly for 12 batteries`` (testData : BatteryBank * int64) =
+        let batteryBank, expectedResult = testData in
+        batteryBank.joltageRating 12 |> should equal expectedResult
 
 [<TestFixture>]
 type ``Tests for solution`` ()=
@@ -53,5 +76,5 @@ type ``Tests for solution`` ()=
 
     [<Test>]
     member _.``It should solve part 2`` ()=
-        part2 sample_input
-        |> should equal "the right answer"
+        part2 batteryBanks
+        |> should equal 3121910778619L
