@@ -1,0 +1,2 @@
+[*.fs]
+dotnet_diagnostic_IDE0047_severity = none
