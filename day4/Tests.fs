@@ -44,14 +44,17 @@ type ``Parsing Tests`` ()=
 [<TestFixture>]
 type ``Tests for solution`` ()=
 
-    let grid = Grid.parse sample_input
 
     [<Test>]
     member _.``It should solve part 1`` ()=
-        part1 grid
+        sample_input
+        |> Grid.parse 
+        |> part1 
         |> should equal 13
 
     [<Test>]
     member _.``It should solve part 2`` ()=
-        part2 sample_input
-        |> should equal "the right answer"
+        sample_input
+        |> Grid.parse 
+        |> part2
+        |> should equal 43

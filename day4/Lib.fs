@@ -26,7 +26,7 @@ type Tile =
             | other -> failwithf "Invalid location char: '%A'" other
 
 type Grid = {
-    cells: Tile[,]
+    mutable cells: Tile[,]
 }
     with 
         override this.ToString() : string =
@@ -43,11 +43,9 @@ type Grid = {
                     |> array2D
             }
 
-        member this.Item (location : Location) = 
-            this.cells[location.row, location.col]
-
-        member this.Item (row : int, col : int) = 
-            this.cells[row, col]
+        member this.Item 
+            with get (location : Location) = this.cells[location.row, location.col]
+            and set (location : Location) (newValue : Tile) = this.cells[location.row, location.col] <- newValue
 
         member this.height = this.cells.GetUpperBound(0) + 1
         member this.width = this.cells.GetUpperBound(1) + 1
@@ -56,11 +54,11 @@ type Grid = {
             location.row >= 0 && location.col >= 0 &&
             location.row < this.height && location.col < this.width
 
-        member this.paperLocations = 
+        member this.paperLocations () = 
             seq {
                 for row in 0..this.height-1 do
                     for col in 0..this.width-1 do
-                        if this[row, col] = Paper then
+                        if this.cells[row, col] = Paper then
                             yield {row = row; col = col}
             }
 
@@ -71,20 +69,40 @@ type Grid = {
                 location.down().left(); location.down(); location.down().right()
             } 
             |> Seq.filter this.isInBounds
+
+        /// Returns the number of papers actually removed 
+        member this.removePapersFrom (locations : Location seq) : int =
+            let mutable removedCount = 0 in 
+            for location in locations do begin
+                if this.isInBounds location && this[location] = Paper then
+                    removedCount <- removedCount + 1;
+                    this[location] <- Empty
+            end;
+            removedCount
+
+        member this.movablePaperLocations () : Location seq =
+            this.paperLocations()
+            |> Seq.filter (fun paperStack -> 
+                let neighboringPaperCount = 
+                    this.neighborsOf paperStack
+                    |> Seq.filter (fun l -> this[l] = Paper)
+                    |> Seq.length
+                in
+                neighboringPaperCount < 4
+            )
+
  
 module Puzzle = begin
     let part1 (grid: Grid) =
-        grid.paperLocations
-        |> Seq.filter (fun paperStack -> 
-            let neighboringPaperCount = 
-                grid.neighborsOf paperStack
-                |> Seq.filter (fun l -> grid[l] = Paper)
-                |> Seq.length
-            in
-            neighboringPaperCount < 4
-        )
+        grid.movablePaperLocations()
         |> Seq.length
 
-    let part2 (input: string seq) =
-        "the right answer"
+    let part2 (grid: Grid) =
+        let mutable totalRemoved = 0 in
+        let mutable targets = grid.movablePaperLocations() in
+        while not (Seq.isEmpty targets) do begin
+            totalRemoved <- totalRemoved + grid.removePapersFrom targets;
+            targets <- grid.movablePaperLocations()
+        end
+        totalRemoved
 end
