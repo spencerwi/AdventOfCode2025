@@ -71,8 +71,9 @@ let mergeRanges (ranges : Range seq) : Range seq =
             | Some merged -> merged :: rest
             | None -> current :: acc
     ) []
-    |> Seq.rev
+    |> Seq.ofList
 
+// A type here to let the compiler ensure that we merge before running parts 1 or 2 (especially part 2)
 type MergedRangesPuzzleInput(ranges : Range seq, ids : Id seq) =
     let _mergedRanges = mergeRanges ranges
     let _ids = ids
