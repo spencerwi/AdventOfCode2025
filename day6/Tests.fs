@@ -12,7 +12,7 @@ let sample_input_raw = """
 *   +   *   +  
 """
 
-let sample_input = sample_input_raw.Trim().Split "\n"
+let sample_input = sample_input_raw.Split("\n", System.StringSplitOptions.RemoveEmptyEntries)
 
 [<TestFixture>]
 type ``transposeArray2D tests`` ()=
@@ -69,4 +69,4 @@ type ``Tests for solution`` ()=
     [<Test>]
     member _.``It should solve part 2`` ()=
         part2 sample_input
-        |> should equal "the right answer"
+        |> should equal 3263827L
