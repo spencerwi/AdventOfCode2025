@@ -1,6 +1,7 @@
 module Lib
 open System.Collections.Generic
 open System.Text.RegularExpressions
+open FSharp.Collections.ParallelSeq
 
 type Button = Set<int>
 let parseButton (input : string) : Button =
@@ -22,53 +23,83 @@ type LightState =
             | On -> Off
             | Off -> On
 
-type LightsBank = {
+type ISolutionTarget<'Self> = 
+    static abstract forMachine : Machine -> 'Self
+    abstract apply : Button -> 'Self
+    abstract isSolutionFor : Machine -> bool
+    /// <description>
+    /// Useful for shortcutting states that cannot reach the goal
+    /// </description>
+    abstract canReachGoal : Machine -> bool
+
+and LightsBank = {
     lights : LightState array
 }
     with 
-        static member make (arr : LightState array) =
-            { lights = arr }
         static member allOff (size : int) =
             { lights = Array.create size Off }
 
-        member this.apply (button : Button) =
-            {
-                lights = 
-                    this.lights
-                    |> Array.mapi (fun idx currentState ->
-                        if button.Contains idx then
-                            currentState.toggled()
-                        else
-                            currentState
-                    )
-            }
+        interface ISolutionTarget<LightsBank> with
+            static member forMachine (machine : Machine) =
+                LightsBank.allOff machine.targetLightsState.size
+
+            member this.apply (button : Button) : LightsBank =
+                {
+                    lights = 
+                        this.lights
+                        |> Array.mapi (fun idx currentState ->
+                            if button.Contains idx then
+                                currentState.toggled()
+                            else
+                                currentState
+                        )
+                }
+
+            member this.isSolutionFor (machine: Machine): bool = 
+                this = machine.targetLightsState
+
+            member _.canReachGoal (machine: Machine): bool = 
+                true
 
         member this.size = this.lights.Length
 
-type SolutionState = {
-    lights : LightsBank
-    buttonPresses : int
+and JoltageBank = {
+    levels : int array
 }
     with 
-        static member initial (numberOfLights : int)=
-            { 
-                lights = LightsBank.allOff numberOfLights 
-                buttonPresses = 0
-            }
+        member this.size = this.levels.Length
 
-        member this.press (button : Button) =
-            {
-                lights = this.lights.apply button
-                buttonPresses = this.buttonPresses + 1
-            }
 
-        member this.matches (targetState : LightsBank) =
-            this.lights = targetState
+        interface ISolutionTarget<JoltageBank> with
+            static member forMachine (machine : Machine) = 
+                { levels = Array.create machine.joltageRequirements.size 0 }
 
-type Machine = {
+            member this.apply (button: Button): JoltageBank = 
+                {
+                    levels =
+                        this.levels
+                        |> Array.mapi (fun idx currentState ->
+                            if button.Contains idx then
+                                currentState + 1
+                            else
+                                currentState
+                        )
+                }
+
+            member this.isSolutionFor (machine: Machine): bool = 
+                this = machine.joltageRequirements
+
+            /// <description>
+            /// If any of the joltage levels go over the target, we can ignore that whole state tree, since they'll never go back down.
+            /// </description>
+            member this.canReachGoal (machine: Machine): bool = 
+                seq { 0 .. this.levels.Length - 1}
+                |> Seq.forall (fun idx -> this.levels[idx] <= machine.joltageRequirements.levels[idx])
+
+and Machine = {
     targetLightsState : LightsBank
     buttons : Button list
-    joltageRequirements : int array
+    joltageRequirements : JoltageBank
 }
     with 
         static member parse (input : string) : Machine =
@@ -94,33 +125,76 @@ type Machine = {
                 {
                     targetLightsState = {lights = lightStates}
                     buttons = buttons
-                    joltageRequirements = joltageRequirements
+                    joltageRequirements = {levels = joltageRequirements}
                 }
 
-        member this.howManyPressesToSolve() : int =
-            let initialState = SolutionState.initial this.targetLightsState.size in
-            let statesToCheck = new PriorityQueue<SolutionState, int>() in
-            statesToCheck.Enqueue(initialState, 0);
-            let mutable foundSolution : SolutionState option = None in
-            while foundSolution.IsNone do begin
-                let current = statesToCheck.Dequeue() in
-                if current.matches this.targetLightsState then
-                    foundSolution <- Some current
-                else
-                    this.buttons
-                    |> Seq.map current.press
-                    |> Seq.iter (fun nextState -> statesToCheck.Enqueue(nextState, nextState.buttonPresses))
-            end
-            foundSolution.Value.buttonPresses
-                    
+type SolutionState<'Target when 'Target :> ISolutionTarget<'Target>>  = {
+    state : 'Target
+    buttonPresses : int
+}
+    with 
+        static member initial (machine : Machine) =
+            { 
+                state = 'Target.forMachine machine
+                buttonPresses = 0
+            }
+
+        member this.press (button : Button) =
+            {
+                state = this.state.apply button
+                buttonPresses = this.buttonPresses + 1
+            }
+
+        member this.isSolvedFor (machine : Machine) =
+            this.state.isSolutionFor machine
+
+        member this.canReachGoalFor (machine : Machine) =
+            this.state.canReachGoal machine
+
+
+let solveForLightState (machine : Machine) : int =
+    let initialState = SolutionState<LightsBank>.initial machine in
+    let statesToCheck = new PriorityQueue<SolutionState<LightsBank>, int>() in
+    statesToCheck.Enqueue(initialState, 0);
+    let mutable foundSolution : SolutionState<LightsBank> option = None in
+    while foundSolution.IsNone do begin
+        let current = statesToCheck.Dequeue() in
+        if current.isSolvedFor machine then
+            foundSolution <- Some current
+        else
+            machine.buttons
+            |> Seq.map current.press
+            |> Seq.iter (fun nextState -> statesToCheck.Enqueue(nextState, nextState.buttonPresses))
+    end
+    foundSolution.Value.buttonPresses
+
+
+let solve<'a when 'a :> ISolutionTarget<'a>> (machine : Machine) : int =
+    let initialState = SolutionState<'a>.initial machine in
+    let statesToCheck = new PriorityQueue<SolutionState<'a>, int>() in
+    statesToCheck.Enqueue(initialState, 0);
+    let mutable foundSolution : SolutionState<'a> option = None in
+    while foundSolution.IsNone do begin
+        let current = statesToCheck.Dequeue() in
+        if current.isSolvedFor machine then
+            foundSolution <- Some current
+        elif current.canReachGoalFor machine then
+            machine.buttons
+            |> Seq.map current.press
+            |> Seq.iter (fun nextState -> statesToCheck.Enqueue(nextState, nextState.buttonPresses))
+    end
+    foundSolution.Value.buttonPresses
+
+
 
 module Puzzle = begin
-    let part1 (input: string seq) =
+    let part1 (input : Machine seq) =
         input 
-        |> Seq.map Machine.parse
-        |> Seq.map _.howManyPressesToSolve()
-        |> Seq.sum 
+        |> PSeq.map solve<LightsBank>
+        |> PSeq.sum 
 
-    let part2 (input: string seq) =
-        "the right answer"
+    let part2 (input: Machine seq) =
+        input 
+        |> PSeq.map solve<JoltageBank>
+        |> PSeq.sum 
 end

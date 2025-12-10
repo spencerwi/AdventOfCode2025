@@ -9,6 +9,7 @@ let read_stdin_lines () : string array =
 [<EntryPoint>]
 let main args =
     let input = read_stdin_lines() in
-    printfn "Part 1: %A" (Puzzle.part1 input);
-    printfn "Part 2: %A" (Puzzle.part2 input);
+    let machines = input |> Seq.map Machine.parse in
+    printfn "Part 1: %A" (Puzzle.part1 machines);
+    printfn "Part 2: %A" (Puzzle.part2 machines);
     0
